@@ -11,7 +11,7 @@ let constraint_constants = Genesis_constants.Constraint_constants.compiled
 let _, _, _, Pickles.Provers.[ init_; merge_ ] =
   time "compile" (fun () ->
       Pickles.compile () ~override_wrap_domain:Pickles_base.Proofs_verified.N1
-        ~cache:Cache_dir.cache ~public_input:(Output Statement.typ)
+        ~cache:Cache_dir.cache ~public_input:(Output F.typ)
         ~auxiliary_typ:Typ.unit
         ~branches:(module Nat.N2)
         ~max_proofs_verified:(module Nat.N2)
@@ -22,12 +22,12 @@ let _, _, _, Pickles.Provers.[ init_; merge_ ] =
         ~choices:(fun ~self -> [ Init.rule; Merge.rule self ]) )
 
 let init a b =
-  let%map stmt, _, proof = init_ ~handler:(Init.handler { a; b }) () in
-  ({ stmt; proof } : t)
+  let%map stmt, _, proof = init_ ~handler:(Init.handler a b) () in
+  ({ stmt; proof } : Snark.t)
 
-let merge (s1 : t) (s2 : t) =
-  let%map stmt, _, proof = merge_ ~handler:(Merge.handler { s1; s2 }) () in
-  ({ stmt; proof } : t)
+let merge (s1 : Snark.t) (s2 : Snark.t) =
+  let%map stmt, _, proof = merge_ ~handler:(Merge.handler s1 s2) () in
+  ({ stmt; proof } : Snark.t)
 
 let () =
   Thread_safe.block_on_async_exn (fun () ->
@@ -42,6 +42,6 @@ let () =
 
       let%bind sum = dtime "sum" (merge first second) in
 
-      print_endline @@ Field.Constant.to_string sum.stmt.result ;
+      print_endline @@ Field.Constant.to_string sum.stmt ;
 
       Deferred.unit )

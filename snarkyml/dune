@@ -65,12 +65,5 @@
  (instrumentation
   (backend bisect_ppx))
  (preprocess
-  (pps
-   ppx_deriving_snarky
-   ppx_snarky
-   ppx_mina
-   ppx_version
-   ppx_jane
-   ppx_compare
-   h_list.ppx))
+  (pps ppx_snarky ppx_mina ppx_version ppx_jane ppx_compare h_list.ppx))
  (modules run circuit helpers))

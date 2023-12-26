@@ -2,28 +2,31 @@ open Snark_params.Tick.Run
 open Helpers
 
 module Add_rule = struct
-  module Statement = struct
-    type t = { result : F.t } [@@deriving snarky]
-  end
-
   module Snark = struct
-    type t = { stmt : Statement.t; proof : RefProof.t } [@@deriving snarky]
+    type t = { stmt : F.t; proof : RefProof.t }
   end
-
-  include Snark
 
   module Init = struct
-    module Witness = struct
-      type t = { a : F.t; b : F.t } [@@deriving snarky]
-    end
+    type _ Snarky_backendless.Request.t +=
+      | A : F.t Snarky_backendless.Request.t
+      | B : F.t Snarky_backendless.Request.t
 
-    include MkHandler (Witness)
+    let handler (a : F.t) (b : F.t)
+        (Snarky_backendless.Request.With { request; respond }) =
+      match request with
+      | A ->
+          respond (Provide a)
+      | B ->
+          respond (Provide b)
+      | _ ->
+          respond Unhandled
 
     let%snarkydef_ main Pickles.Inductive_rule.{ public_input = () } =
-      let Witness.{ a; b } = exists_witness () in
+      let a = exists ~request:(fun () -> A) F.typ in
+      let b = exists ~request:(fun () -> B) F.typ in
       Pickles.Inductive_rule.
         { previous_proof_statements = []
-        ; public_output = Statement.{ result = Field.(a + b) }
+        ; public_output = Field.(a + b)
         ; auxiliary_output = ()
         }
 
@@ -36,27 +39,45 @@ module Add_rule = struct
   end
 
   module Merge = struct
-    module Witness = struct
-      type t = { s1 : Snark.t; s2 : Snark.t } [@@deriving snarky]
-    end
+    type _ Snarky_backendless.Request.t +=
+      | Statement1 : F.t Snarky_backendless.Request.t
+      | Proof1 : RefProof.t Snarky_backendless.Request.t
+      | Statement2 : F.t Snarky_backendless.Request.t
+      | Proof2 : RefProof.t Snarky_backendless.Request.t
 
-    include MkHandler (Witness)
+    let handler (s1 : Snark.t) (s2 : Snark.t)
+        (Snarky_backendless.Request.With { request; respond }) =
+      match request with
+      | Statement1 ->
+          respond (Provide s1.stmt)
+      | Proof1 ->
+          respond (Provide s1.proof)
+      | Statement2 ->
+          respond (Provide s2.stmt)
+      | Proof2 ->
+          respond (Provide s2.proof)
+      | _ ->
+          respond Unhandled
 
     let%snarkydef_ main Pickles.Inductive_rule.{ public_input = () } =
-      let Witness.{ s1; s2 } = exists_witness () in
+      let stmt1 = exists ~request:(fun () -> Statement1) F.typ in
+      let proof1 = exists ~request:(fun () -> Proof1) RefProof.typ in
+
+      let stmt2 = exists ~request:(fun () -> Statement2) F.typ in
+      let proof2 = exists ~request:(fun () -> Proof2) RefProof.typ in
+
       Pickles.Inductive_rule.
         { previous_proof_statements =
-            [ { public_input = s1.stmt
+            [ { public_input = stmt1
               ; proof_must_verify = Boolean.true_
-              ; proof = s1.proof
+              ; proof = proof1
               }
-            ; { public_input = s2.stmt
+            ; { public_input = stmt2
               ; proof_must_verify = Boolean.true_
-              ; proof = s2.proof
+              ; proof = proof2
               }
             ]
-        ; public_output =
-            Statement.{ result = Field.(s1.stmt.result + s2.stmt.result) }
+        ; public_output = Field.(stmt1 + stmt2)
         ; auxiliary_output = ()
         }
 
